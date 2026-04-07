@@ -97,6 +97,44 @@ export async function deleteProject(projectId) {
 	});
 }
 
+export async function buildProject(projectId, files, workspaceName) {
+	const zip = new JSZip();
+	Object.entries(files).forEach(([path, content]) => {
+		zip.file(path, content);
+	});
+
+	const blob = await zip.generateAsync({ type: "blob" });
+	const formData = new FormData();
+	formData.append("file", blob, `${workspaceName}.zip`);
+
+	const response = await fetch(`${BASE_URL}/api/projects/${projectId}/build`, {
+		method: "POST",
+		body: formData,
+	});
+
+	const result = await response.json();
+	return result;
+}
+
+export async function updateProject(projectId, files, workspaceName) {
+	const zip = new JSZip();
+	Object.entries(files).forEach(([path, content]) => {
+		zip.file(path, content);
+	});
+
+	const blob = await zip.generateAsync({ type: "blob" });
+	const formData = new FormData();
+	formData.append("file", blob, `${workspaceName}.zip`);
+
+	const response = await fetch(
+		`${BASE_URL}/api/projects/upload-zip/${projectId}`,
+		{ method: "PUT", body: formData },
+	);
+
+	if (!response.ok) throw new Error("Update failed");
+	return response.json();
+}
+
 export const fetchRepoTree = async () => {
 	const res = await fetch(
 		"https://api.github.com/repos/stellar/soroban-examples/git/trees/main?recursive=1",

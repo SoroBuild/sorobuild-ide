@@ -37,7 +37,6 @@ import {
 	starterFiles,
 	starterLogs,
 	starterTests,
-	STORAGE_KEY,
 } from "../../utils/constant";
 import {
 	buildTree,
@@ -52,6 +51,7 @@ import Modal from "../../components/ide-files/Modal";
 import ExplorerNode from "../../components/ide-files/ExplorerNode";
 import {
 	clearProjectIdFromUrl,
+	buildProject,
 	downloadProjectAsFiles,
 	getProjectIdFromUrl,
 	uploadRawFilesAsZip,
@@ -63,6 +63,22 @@ import {
 import { getExampleFolders } from "../../utils/lib";
 
 export default function SorobuildeIDE() {
+	const hasProjectInUrl = Boolean(
+		new URLSearchParams(window.location.search).get("projectId"),
+	);
+
+	const [activeFile, setActiveFile] = useState(
+		hasProjectInUrl ? "" : "hello_world/src/lib.rs",
+	);
+	const [openTabs, setOpenTabs] = useState(
+		hasProjectInUrl ? [] : ["hello_world/src/lib.rs"],
+	);
+	const [selectedPath, setSelectedPath] = useState(
+		hasProjectInUrl ? "" : "hello_world/src/lib.rs",
+	);
+	const [expanded, setExpanded] = useState(
+		hasProjectInUrl ? {} : { hello_world: true },
+	);
 	const [showExamplesModal, setShowExamplesModal] = useState(false);
 	const [examples, setExamples] = useState([]);
 	const [loadingExamples, setLoadingExamples] = useState(false);
@@ -71,18 +87,12 @@ export default function SorobuildeIDE() {
 	const [fileHandles, setFileHandles] = useState({});
 	const [files, setFiles] = useState(starterFiles);
 	const [workspaceName, setWorkspaceName] = useState("counter-workspace");
-	const [activeFile, setActiveFile] = useState("contracts/counter/src/lib.rs");
-	const [openTabs, setOpenTabs] = useState([
-		"contracts/counter/src/lib.rs",
-		"contracts/counter/Cargo.toml",
-		"tests/counter.spec.ts",
-	]);
+	// const [activeFile, setActiveFile] = useState("hello_world/src/lib.rs");
+	// const [openTabs, setOpenTabs] = useState(["hello_world/src/lib.rs"]);
 	const [fileQuery, setFileQuery] = useState("");
-	const [expanded, setExpanded] = useState({
-		contracts: true,
-		tests: true,
-		audit: true,
-	});
+	// const [expanded, setExpanded] = useState({
+	// 	hello_world: true,
+	// });
 	const [network, setNetwork] = useState("sandbox");
 	const [walletConnected, setWalletConnected] = useState(false);
 	const [generatedAddresses, setGeneratedAddresses] = useState([
@@ -110,9 +120,7 @@ export default function SorobuildeIDE() {
 	const [localChainHeight, setLocalChainHeight] = useState(2411);
 	const [selectedContext, setSelectedContext] = useState("Current file");
 	const [workspaceDirty, setWorkspaceDirty] = useState(false);
-	const [selectedPath, setSelectedPath] = useState(
-		"contracts/counter/src/lib.rs",
-	);
+	// const [selectedPath, setSelectedPath] = useState("hello_world/src/lib.rs");
 	const [dragActive, setDragActive] = useState(false);
 
 	const [showNewFileModal, setShowNewFileModal] = useState(false);
@@ -167,11 +175,26 @@ export default function SorobuildeIDE() {
 				const loadedFiles = await downloadProjectAsFiles(id);
 				setProjectId(id);
 				setFiles(loadedFiles);
-				setActiveFile("");
-				setSelectedPath("");
-				setOpenTabs([]);
+
+				const filePaths = Object.keys(loadedFiles);
+				const rootFolder = filePaths[0]?.split("/")[0] || "imported-workspace";
+
+				const firstSrcFile =
+					filePaths.find((p) => p.includes("/src/") && p.endsWith(".rs")) ||
+					filePaths.find((p) => p.endsWith(".rs")) ||
+					filePaths[0];
+
+				setWorkspaceName(rootFolder);
+				setExpanded({ [rootFolder]: true });
+
+				if (firstSrcFile) {
+					setActiveFile(firstSrcFile);
+					setSelectedPath(firstSrcFile);
+					setOpenTabs([firstSrcFile]);
+				}
+
 				setStatus("Project loaded");
-				pushLog("success", `Project loaded. Click a file to open it.`);
+				pushLog("success", `Project loaded.`);
 			} catch {
 				pushLog("warning", "Failed to load project from URL.");
 				clearProjectIdFromUrl();
@@ -478,10 +501,13 @@ export default function SorobuildeIDE() {
 			setFiles(parsed.files);
 
 			const importedPaths = Object.keys(parsed.files);
-			if (importedPaths.length) {
-				setActiveFile(importedPaths[0]);
-				setSelectedPath(importedPaths[0]);
-				setOpenTabs(importedPaths.slice(0, 6));
+			const srcFile = importedPaths.find(
+				(path) => path.split("/")[1] === "src",
+			);
+			const defaultFile = srcFile || importedPaths[0] || "";
+
+			if (defaultFile) {
+				openFile(defaultFile);
 			}
 
 			setWorkspaceDirty(false);
@@ -521,20 +547,118 @@ export default function SorobuildeIDE() {
 				next[item.path] = "";
 			}
 
+			const rootFolder =
+				filtered[0]?.path.split("/")[0] || "imported-workspace";
+
+			// Find first .rs file inside a src folder
+			const firstSrcFile = filtered.find(
+				(item) => item.path.includes("/src/") && item.path.endsWith(".rs"),
+			);
+			const firstFile =
+				firstSrcFile ||
+				filtered.find((item) => item.path.endsWith(".rs")) ||
+				filtered[0];
+
+			// Load the first file content eagerly
+			if (firstFile) {
+				next[firstFile.path] = await firstFile.file.text();
+			}
+
 			setFiles(next);
 			setFileHandles(Object.fromEntries(filtered.map((i) => [i.path, i.file])));
-			setActiveFile("");
-			setSelectedPath("");
-			setOpenTabs([]);
-			setWorkspaceName(filtered[0]?.path.split("/")[0] || "imported-workspace");
+			setWorkspaceName(rootFolder);
+			setExpanded({ [rootFolder]: true });
 			setWorkspaceDirty(false);
+
+			// Clear all tabs and open only the first file
+			setOpenTabs(firstFile ? [firstFile.path] : []);
+			setActiveFile(firstFile?.path || "");
+			setSelectedPath(firstFile?.path || "");
+
 			setStatus("Workspace imported");
-			pushLog(
-				"success",
-				`Imported ${filtered.length} files. Click a file to open it.`,
-			);
+			pushLog("success", `Imported ${filtered.length} files.`);
 		} catch {
 			pushLog("warning", "Import failed.");
+		} finally {
+			setLoading(false);
+		}
+	};
+
+	const addFilesToWorkspace = async (incoming) => {
+		setLoading(true);
+		try {
+			const ignored = (path) =>
+				path.startsWith("node_modules/") ||
+				path.startsWith(".git/") ||
+				path.endsWith(".gitkeep") ||
+				path.includes("/.pnpm/") ||
+				path.includes("/target/");
+
+			const filtered = incoming.filter((item) => !ignored(item.path));
+
+			let targetFolder = selectedPath;
+			if (targetFolder && files[targetFolder]) {
+				targetFolder = targetFolder.split("/").slice(0, -1).join("/");
+			}
+			const folderExists = Object.keys(files).some(
+				(key) => key.startsWith(targetFolder + "/") || key === targetFolder,
+			);
+			if (!targetFolder || !folderExists) {
+				targetFolder = workspaceName;
+			}
+
+			const newFiles = {};
+			const newFileHandles = {};
+			for (const item of filtered) {
+				const fileName = item.path.split("/").pop();
+				const newPath = `${targetFolder}/${fileName}`;
+				newFiles[newPath] = "";
+				newFileHandles[newPath] = item.file;
+			}
+
+			// Resolve ALL file contents before uploading — existing unloaded files
+			// and newly added files both need their content read
+			const mergedHandles = { ...fileHandles, ...newFileHandles };
+			const resolvedFiles = {};
+
+			for (const [path, content] of Object.entries({ ...files, ...newFiles })) {
+				if (content) {
+					resolvedFiles[path] = content;
+				} else if (mergedHandles[path]) {
+					resolvedFiles[path] = await mergedHandles[path].text();
+				} else {
+					resolvedFiles[path] = "";
+				}
+			}
+
+			// Upload the fully resolved files
+			const filesToUpload = Object.entries(resolvedFiles).map(
+				([path, content]) => ({
+					file: new Blob([content]),
+					path,
+				}),
+			);
+
+			const urlProjectId = getProjectIdFromUrl();
+			if (urlProjectId) {
+				await deleteProject(urlProjectId);
+			}
+
+			const { projectId: newId } = await uploadRawFilesAsZip(filesToUpload);
+			updateUrlWithProjectId(newId);
+			setProjectId(newId);
+
+			// Update state with resolved content so editor also shows it correctly
+			setFiles(resolvedFiles);
+			setFileHandles(mergedHandles);
+			setExpanded((prev) => ({ ...prev, [targetFolder]: true }));
+			setWorkspaceDirty(false);
+			setStatus(
+				`Added ${filtered.length} file${filtered.length > 1 ? "s" : ""}`,
+			);
+			pushLog("success", `Added ${filtered.length} files to ${targetFolder}`);
+		} catch (error) {
+			pushLog("warning", "Failed to add files: " + error.message);
 		} finally {
 			setLoading(false);
 		}
@@ -580,7 +704,16 @@ export default function SorobuildeIDE() {
 			path: file.webkitRelativePath || file.name,
 		}));
 
-		await importFilesIntoWorkspace(normalized);
+		// If webkitRelativePath is set, it means a folder was selected via the
+		// folder input — replace workspace. Otherwise it's individual files — add.
+		const isFolder = selected.some((file) => file.webkitRelativePath);
+
+		if (isFolder) {
+			await importFilesIntoWorkspace(normalized);
+		} else {
+			await addFilesToWorkspace(normalized);
+		}
+
 		event.target.value = "";
 	};
 
@@ -591,11 +724,12 @@ export default function SorobuildeIDE() {
 				const entries = await readDirectoryEntries([dir]);
 				const normalized = entries.map((item) => ({
 					...item,
-					path: item.path.replace(`${dir.name}/`, "") || item.path,
+					path: item.path,
 				}));
-				await importFilesIntoWorkspace(normalized);
+				await importFilesIntoWorkspace(normalized); // always replace
 			} else {
-				folderInputRef.current?.click();
+				folderInputRef.current?.click(); // fallback triggers handleUploadFiles
+				// which will detect webkitRelativePath and call importFilesIntoWorkspace
 			}
 		} catch {
 			pushLog("warning", "Folder selection cancelled.");
@@ -614,8 +748,16 @@ export default function SorobuildeIDE() {
 						.map((item) => item.getAsFileSystemHandle?.())
 						.filter(Boolean),
 				);
+
+				// If any handle is a directory, treat as folder replace
+				const hasDirectory = handles.some((h) => h.kind === "directory");
 				const imported = await readDirectoryEntries(handles);
-				await importFilesIntoWorkspace(imported);
+
+				if (hasDirectory) {
+					await importFilesIntoWorkspace(imported);
+				} else {
+					await addFilesToWorkspace(imported);
+				}
 				return;
 			} catch {
 				pushLog(
@@ -630,22 +772,37 @@ export default function SorobuildeIDE() {
 			path: file.webkitRelativePath || file.name,
 		}));
 
-		if (dropped.length) await importFilesIntoWorkspace(dropped);
+		if (dropped.length) {
+			// Same rule — if any file has a relative path, it came from a folder drop
+			const hasFolder = dropped.some((f) => f.path.includes("/"));
+			if (hasFolder) {
+				await importFilesIntoWorkspace(dropped);
+			} else {
+				await addFilesToWorkspace(dropped);
+			}
+		}
 	};
 
-	const compileProject = () => {
+	const compileProject = async () => {
+		if (!projectId) {
+			pushLog("warning", "No project to compile. Upload a project first.");
+			return;
+		}
+
 		setStatus("Compiling...");
 		pushLog(
 			"info",
 			`Compiling project against ${activeNetwork.label} toolchain...`,
 		);
-		setTimeout(() => {
+
+		try {
+			const result = await buildProject(projectId, files, workspaceName);
 			setStatus("Compiled successfully");
-			pushLog(
-				"success",
-				"Build finished. WASM artifact generated: target/wasm32v1-none/release/counter.wasm",
-			);
-		}, 500);
+			pushLog("success", result.output || "Build completed successfully");
+		} catch (error) {
+			setStatus("Compile failed");
+			pushLog("error", error.message || "Build failed");
+		}
 	};
 
 	const runTests = () => {
@@ -1646,7 +1803,7 @@ export default function SorobuildeIDE() {
 
 										<div className="min-h-0 flex-1 overflow-auto p-4">
 											{bottomTab === "console" && (
-												<div className="space-y-2 font-mono text-sm">
+												<pre className="space-y-2 font-mono text-sm">
 													{terminal.map((entry, index) => (
 														<div
 															key={`${entry.text}-${index}`}
@@ -1662,7 +1819,7 @@ export default function SorobuildeIDE() {
 															{entry.text}
 														</div>
 													))}
-												</div>
+												</pre>
 											)}
 
 											{bottomTab === "tests" && (
@@ -1819,7 +1976,10 @@ export default function SorobuildeIDE() {
 										{examples.map((ex) => (
 											<button
 												key={ex.path}
-												onClick={() => loadExampleFolder(ex.path)}
+												onClick={() => {
+													loadExampleFolder(ex.path);
+													setShowExamplesModal(false);
+												}}
 												className="w-full text-left px-3 py-2 rounded-xl hover:bg-white/[0.05]"
 											>
 												{ex.path}
