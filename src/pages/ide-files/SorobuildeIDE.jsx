@@ -61,6 +61,8 @@ import {
 	fetchRepoTree,
 } from "../../utils/api";
 import { getExampleFolders } from "../../utils/lib";
+import * as monaco from "monaco-editor";
+import * as vscode from "vscode";
 
 export default function SorobuildeIDE() {
 	const hasProjectInUrl = Boolean(
@@ -143,6 +145,20 @@ export default function SorobuildeIDE() {
 	const editorRef = useRef(null);
 	const monacoRef = useRef(null);
 
+	const mountEditor = (node) => {
+		if (!node || editorRef.current) return;
+
+		editorRef.current = monaco.editor.create(node, {
+			model: monaco.editor.createModel(
+				"",
+				"rust",
+				vscode.Uri.file(`app/src/main.rs`),
+			),
+			theme: "vs-dark",
+			automaticLayout: true,
+		});
+	};
+
 	const activeNetwork =
 		networkOptions.find((item) => item.value === network) || networkOptions[0];
 
@@ -151,6 +167,15 @@ export default function SorobuildeIDE() {
 	};
 
 	const markDirty = () => setWorkspaceDirty(true);
+
+	useEffect(() => {
+		if (!editorRef.current || !activeFile) return;
+		const currentCode = files[activeFile] ?? "";
+		const model = editorRef.current.getModel();
+		if (model) {
+			model.setValue(currentCode);
+		}
+	}, [activeFile, files]);
 
 	const loadExamples = async () => {
 		setLoadingExamples(true);
@@ -255,7 +280,7 @@ export default function SorobuildeIDE() {
 	}, [tree, fileQuery, files]);
 
 	const currentCode = files[activeFile] ?? "";
-	const editorLines = currentCode.split("\n");
+	// const editorLines = currentCode.split("\n");
 
 	const commandItems = useMemo(() => {
 		const items = [
@@ -1392,81 +1417,10 @@ export default function SorobuildeIDE() {
 												</div>
 
 												{activeFile ? (
-													<div className="grid min-h-0 flex-1 grid-cols-[56px_minmax(0,1fr)] bg-[#0f1528]">
-														<div className="overflow-auto border-r border-white/10 bg-[#0c1223] py-3 text-right text-slate-500">
-															{editorLines.map((_, index) => {
-																const line = index + 1;
-																const marked = breakpoints.includes(line);
-																return (
-																	<button
-																		key={line}
-																		onClick={() => toggleBreakpoint(line)}
-																		className={cn(
-																			"flex h-7 w-full items-center justify-end gap-2 px-2 text-xs transition",
-																			marked
-																				? "text-rose-300"
-																				: "hover:bg-white/[0.04]",
-																		)}
-																	>
-																		<span
-																			className={cn(
-																				"h-2 w-2 rounded-full",
-																				marked
-																					? "bg-rose-400"
-																					: "border border-transparent bg-transparent",
-																			)}
-																		/>
-																		{line}
-																	</button>
-																);
-															})}
-														</div>
-
-														<div className="min-h-0 overflow-hidden">
-															<Editor
-																height="100%"
-																language={getLanguageFromPath(activeFile)}
-																value={currentCode}
-																theme="vs-dark"
-																onMount={(editor, monaco) => {
-																	editorRef.current = editor;
-																	monacoRef.current = monaco;
-
-																	monaco.editor.defineTheme("soroban-dark", {
-																		base: "vs-dark",
-																		inherit: true,
-																		rules: [],
-																		colors: {
-																			"editor.background": "#0f1528",
-																			"editorLineNumber.foreground": "#73809b",
-																			"editorLineNumber.activeForeground":
-																				"#d8e2ff",
-																			"editorCursor.foreground": "#4ad8ff",
-																			"editor.selectionBackground": "#1c3358",
-																		},
-																	});
-
-																	monaco.editor.setTheme("soroban-dark");
-																}}
-																onChange={(value) => updateCode(value || "")}
-																options={{
-																	minimap: { enabled: false },
-																	fontSize: 13,
-																	wordWrap: "off",
-																	automaticLayout: true,
-																	smoothScrolling: true,
-																	scrollbar: {
-																		verticalScrollbarSize: 10,
-																		horizontalScrollbarSize: 10,
-																	},
-																	suggestOnTriggerCharacters: true,
-																	quickSuggestions: true,
-																	tabSize: 4,
-																	padding: { top: 12 },
-																}}
-															/>
-														</div>
-													</div>
+													<div
+														className="h-full w-full relative pt-2.5"
+														ref={mountEditor}
+													/>
 												) : (
 													<div className="flex min-h-0 flex-1 items-center justify-center bg-[#0f1528]">
 														<div className="text-center text-slate-500">
@@ -1478,10 +1432,10 @@ export default function SorobuildeIDE() {
 													</div>
 												)}
 
-												<div className="border-t border-white/10 bg-[#10172c] px-4 py-2 text-xs text-slate-400">
+												{/* <div className="border-t border-white/10 bg-[#10172c] px-4 py-2 text-xs text-slate-400">
 													Click line numbers to toggle breakpoints. Resize
 													sidebars and console by dragging the handles.
-												</div>
+												</div> */}
 											</div>
 										</Panel>
 

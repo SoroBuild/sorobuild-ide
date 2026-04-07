@@ -10,13 +10,15 @@
 		"preview": "vite preview"
 	},
 	"dependencies": {
-		"@codingame/monaco-vscode-api": "^30.0.0",
+		"@codingame/esbuild-import-meta-url-plugin": "^1.0.3",
+		"@codingame/monaco-vscode-rust-default-extension": "^30.0.0",
 		"@creit.tech/stellar-wallets-kit": "^2.1.0",
 		"@lobstrco/signer-extension-api": "^2.0.0",
 		"@monaco-editor/react": "^4.7.0",
 		"@sorobuild/stellar-sdk": "^2.19.0",
 		"@stellar/freighter-api": "^6.0.1",
 		"@stellar/stellar-sdk": "^15.0.1",
+		"@vitejs/plugin-react": "^6.0.1",
 		"@webcontainer/api": "^1.6.1",
 		"axios": "^1.10.0",
 		"bignumber.js": "^10.0.2",
@@ -45,7 +47,6 @@
 	"devDependencies": {
 		"@types/react": "^18.2.66",
 		"@types/react-dom": "^18.2.22",
-		"@vitejs/plugin-react-swc": "^4.3.0",
 		"autoprefixer": "^10.4.27",
 		"eslint": "^9.39.4",
 		"eslint-plugin-react": "^7.37.5",
