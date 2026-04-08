@@ -1,7 +1,12 @@
+import { StatesProvider } from "./contexts/StatesContext";
 import SorobuildIDE from "./pages/ide-files/SorobuildeIDE";
 
 function App() {
-	return <SorobuildIDE />;
+  return (
+    <StatesProvider>
+      <SorobuildIDE />
+    </StatesProvider>
+  );
 }
 
 export default App;
