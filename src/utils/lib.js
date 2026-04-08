@@ -25,19 +25,43 @@ export function getLanguageFromPath(path) {
 
 export function buildTree(paths) {
 	const root = {};
-	[...paths].sort().forEach((path) => {
+	const sortedPaths = [...paths].sort();
+	
+	for (let i = 0; i < sortedPaths.length; i++) {
+		const path = sortedPaths[i];
 		const parts = path.split("/");
 		let cursor = root;
+		
 		parts.forEach((part, index) => {
 			const isFile = index === parts.length - 1;
+			const currentPath = parts.slice(0, index + 1).join("/");
+			
 			if (!cursor[part]) {
 				cursor[part] = isFile
-					? { __file: true, path }
-					: { __folder: true, path: parts.slice(0, index + 1).join("/") };
+					? { __file: true, path: currentPath }
+					: { __folder: true, path: currentPath };
 			}
 			cursor = cursor[part];
 		});
-	});
+	}
+	
+	for (let i = 0; i < sortedPaths.length - 1; i++) {
+		const current = sortedPaths[i];
+		const next = sortedPaths[i + 1];
+		if (next.startsWith(current + "/")) {
+			const parts = current.split("/");
+			const parentParts = parts.slice(0, -1);
+			let cursor = root;
+			for (let j = 0; j < parentParts.length; j++) {
+				cursor = cursor[parentParts[j]];
+			}
+			const lastPart = parts[parts.length - 1];
+			if (cursor[lastPart] && !cursor[lastPart].__folder) {
+				cursor[lastPart] = { __folder: true, path: current };
+			}
+		}
+	}
+	
 	return root;
 }
 
