@@ -1,7 +1,7 @@
-import SorobuildIDE from "./pages/ide-files/SorobuildIde";
+import SorobuildIDE from "./pages/ide-files/SorobuildeIDE";
 
 function App() {
-  return <SorobuildIDE />;
+	return <SorobuildIDE />;
 }
 
 export default App;
