@@ -1,13 +1,8 @@
-import axios from "axios";
 import { createContext, useContext, useEffect, useState } from "react";
 import { getRequest, postRequest, BASE_URL } from "../utils/fetch-function";
 import { v4 as uuidv4 } from "uuid";
-import { useNavigate, useParams } from "react-router-dom";
+
 import { toast } from "sonner";
-
-import { StellarServers } from "@sorobuild/stellar-sdk";
-
-import { WalletKitService } from "../wallet-kit/services/global-service";
 
 const StatesContext = createContext();
 
@@ -31,6 +26,8 @@ export function StatesProvider({ children }) {
   const [contractOperations, setContractOperations] = useState(null);
   const [contractAddr, setContractAddr] = useState("");
 
+  const [showNewFileModal, setShowNewFileModal] = useState(false);
+  const [showNewFolderModal, setShowNewFolderModal] = useState(false);
   const [totalReceivables, setTotalReceivables] = useState({
     currency: "",
     total: 0,
@@ -76,10 +73,6 @@ export function StatesProvider({ children }) {
 
   const [productCategoryTab, setProductCategoryTab] = useState("PRODUCT");
 
-  const navigate = useNavigate();
-
-  const { id } = useParams();
-
   const url = `https://rpc.ankr.com/stellar_soroban/8f847212cefcc391509e0aee929c173b83eaf25592bc7f122da333bddb851c79`;
 
   const key = "688a0cb12c5cded6ffb6016d_2396_688a0cf52c5cded6ffb60171";
@@ -93,26 +86,6 @@ export function StatesProvider({ children }) {
       public: "https://horizon.main",
     },
   };
-
-  const stellarWalletKitOptions = WalletKitService.walletKit.modules;
-
-  // console.log("the stellar wallet options", stellarWalletKitOptions);
-
-  const { RpcServer, HorizonServer } = new StellarServers({
-    serverUrl: serverUrl,
-  });
-
-  async function caller(network, hash) {
-    try {
-      const data = await RpcServer(network, "parsed").getTransaction(hash);
-
-      console.log(data, { depth: null });
-
-      // console.dir(data, { depth: null });
-    } catch (err) {
-      console.error("❌ Error while fetching transaction:", err);
-    }
-  }
 
   const capitalize = (str) =>
     str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
@@ -134,15 +107,6 @@ export function StatesProvider({ children }) {
     // Return the formatted date
     return `${month} ${day}, ${year}`;
   }
-
-  // console.log("the login profile", businessInfo);
-
-  useEffect(() => {
-    caller(
-      "PUBLIC",
-      "aeb44dea87558d9c29d31908919fbbf70618c7e12519141420c4629f32bb30df"
-    );
-  }, []);
 
   useEffect(() => {
     if (userProfile) {
@@ -192,229 +156,6 @@ export function StatesProvider({ children }) {
       console.log(e?.message);
     }
   });
-
-  useEffect(() => {
-    async function fetchClients() {
-      try {
-        setIsFetching(true);
-
-        const res = await getRequest(
-          "customer/all",
-          "offset=1&limit=20",
-          userProfile?.accessToken
-        );
-
-        if (res) {
-          if (res?.customers.length > 0) {
-            const total = res.customers.reduce((sum, customer) => {
-              return sum + Number(customer.receivables);
-            }, 0);
-            setTotalReceivables((cur) => ({
-              ...cur,
-              total: total,
-            }));
-          }
-
-          setAllClients(res);
-
-          // setAllServices(res?.data?.data?.services);
-        }
-      } catch (error) {
-        console.error("Error fetching services:", error);
-        throw error; // Re-throw for error handling upstream
-      } finally {
-        setIsFetching(false);
-      }
-    }
-    if (
-      userProfile?.accessToken &&
-      !id &&
-      userProfile?.accessToken &&
-      userProfile?.loginType !== "MFA_REQUIRED"
-    ) {
-      fetchClients();
-    }
-  }, [updateData, userProfile?.accessToken, path]);
-
-  // useEffect(() => {
-  //   if (!id) {
-  //     setSelectedClient(null);
-  //   }
-  // }, [path]);
-
-  function handleLogout() {
-    localStorage.removeItem("accessToken");
-    localStorage.removeItem("userProfile");
-    localStorage.removeItem("businessInfo");
-    setAccessToken("");
-    setUserProfile(null);
-    setBusinessInfo(null);
-    if (userProfile?.accountType === "Customer") {
-      navigate("/client");
-    } else {
-      navigate("/");
-    }
-  }
-
-  useEffect(() => {
-    async function fetchCategories() {
-      try {
-        const res = await getRequest(
-          "category/all",
-          "offset=1&limit=20",
-          accessToken
-        );
-
-        if (res) {
-          // console.log("all fetched categories are", res);
-          setCategories(res?.categories);
-        }
-      } catch (error) {
-        console.error("Error fetching categories:", error);
-        throw error; // Re-throw for error handling upstream
-      }
-    }
-    if (userProfile?.loginType !== "MFA_REQUIRED" && userProfile?.accessToken) {
-      fetchCategories();
-    }
-  }, [productCategoryTab, updateData, userProfile?.accessToken]);
-
-  // console.log("accessToken", accessToken, userProfile?.accessToken);
-
-  useEffect(() => {
-    async function fetchItems() {
-      try {
-        setIsFetching(true);
-
-        const res = await getRequest(
-          "offerings/all",
-          "offset=1&limit=20",
-          userProfile?.accessToken
-        );
-
-        if (res) {
-          // console.log(res?.data?.data?.services);
-
-          const internalServices = res?.offerings?.filter(
-            (item) => item?.id === "685ca5011374a38da9cc5c1e"
-          );
-
-          setAllServices(internalServices);
-
-          setProductsAndServices(res);
-
-          setItems(res);
-        }
-      } catch (error) {
-        console.error("Error fetching services:", error);
-        throw error; // Re-throw for error handling upstream
-      } finally {
-        setIsFetching(false);
-      }
-    }
-
-    if (userProfile?.loginType !== "MFA_REQUIRED" && userProfile?.accessToken) {
-      fetchItems();
-    }
-  }, [productCategoryTab, updateData, userProfile?.accessToken]);
-
-  // console.log("user token", userProfile);
-  let queryParams;
-  useEffect(() => {
-    async function getAllInvoice() {
-      try {
-        setIsFetching(true);
-        // Make a POST request without the Authorization header
-        // const response = await getRequest(
-        //   "invoices/all",
-        //   `offset=1&limit=20&draft=${"invoice" === "estimate"}`,
-        //   userProfile?.accessToken
-        // );
-
-        if (userProfile?.id) {
-          queryParams = `offset=1&limit=20&recipientId=${userProfile?.id}`;
-        } else {
-          queryParams = `offset=1&limit=20`;
-        }
-
-        if (queryParams) {
-          const response = await getRequest(
-            "invoices/all",
-            queryParams,
-            userProfile?.accessToken
-          );
-
-          setInvoices(response);
-
-          const end = new Date(
-            Date.now() - 1 * 24 * 60 * 60 * 1000
-          ).toISOString();
-          const start = new Date(Date.now()).toISOString();
-
-          // const statement = await getRequest(
-          //   "customer/statement",
-          //   `startDate=${start}&endDate=${end}`,
-          //   userProfile?.accessToken
-          // );
-
-          // console.log("the statement log is", statement);
-        }
-      } catch (err) {
-        console.error(
-          "Error creating invoice:",
-          err.response ? err.response.data : err.message
-        );
-      } finally {
-        setIsFetching(false);
-      }
-    }
-
-    if (userProfile?.loginType !== "MFA_REQUIRED" && userProfile?.accessToken) {
-      getAllInvoice();
-    }
-  }, [userProfile?.accessToken, updateData, userProfile?.id, queryParams]);
-
-  useEffect(() => {
-    async function getUsers() {
-      try {
-        setIsFetching(true);
-
-        const response = await getRequest(
-          "user/all",
-          `offset=1&limit=20`,
-          userProfile?.accessToken
-        );
-
-        // setInvoices(response);
-        setAllUsers(response);
-      } catch (err) {
-        console.error(
-          "Error creating invoice:",
-          err.response ? err.response.data : err.message
-        );
-      } finally {
-        setIsFetching(false);
-      }
-    }
-
-    if (userProfile?.loginType !== "MFA_REQUIRED" && userProfile?.accessToken) {
-      getUsers();
-    }
-  }, [userProfile?.accessToken, updateData]);
-
-  //Route to onboarding
-
-  // useEffect(() => {
-  //   if (!userProfile?.accessToken) {
-  //     // navigate("/");
-  //   }
-
-  //   if (businessInfo && userProfile?.accessToken?.length > 0) {
-  //     if (!businessInfo?.currency) {
-  //       navigate("/onboarding");
-  //     }
-  //   }
-  // }, [businessInfo?.businessId, userProfile?.accessToken, updateData]);
 
   const triggerUpdate = () => {
     setUpdateData(uuidv4());
@@ -526,7 +267,7 @@ export function StatesProvider({ children }) {
         setSelectedOrder,
         selectedInvoice,
         setSelectedInvoice,
-        handleLogout,
+
         orders,
         setOrders,
         formatDate,
@@ -610,6 +351,10 @@ export function StatesProvider({ children }) {
         setContractOperations,
         contractAddr,
         setContractAddr,
+        showNewFileModal,
+        setShowNewFileModal,
+        showNewFolderModal,
+        setShowNewFolderModal,
       }}
     >
       {children}

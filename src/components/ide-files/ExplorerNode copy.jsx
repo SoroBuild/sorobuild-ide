@@ -2,15 +2,11 @@ import {
   ChevronDown,
   ChevronRight,
   FileCode2,
-  FilePlus2,
-  FolderOpen,
-  FolderPlus,
   FolderTree,
   Trash2,
   Wand2,
 } from "lucide-react";
 import { cn } from "../../utils/lib";
-import { useStates } from "../../contexts/StatesContext";
 
 export default function ExplorerNode({
   name,
@@ -24,30 +20,19 @@ export default function ExplorerNode({
   onSelectPath,
   onRename,
   onDelete,
-  onLoadFolder,
 }) {
-  const isFile = Boolean(node?.__file);
-  const path = node?.path;
+  const isFile = Boolean(node.__file);
+  const path = node.path;
   const isSelected = selectedPath === path;
-  const isRoot = depth === 0;
-
-  const {
-    showNewFileModal,
-    setShowNewFileModal,
-    showNewFolderModal,
-    setShowNewFolderModal,
-  } = useStates();
 
   if (isFile) {
     const isActive = activeFile === path;
-
     return (
       <div className="group flex items-center gap-1">
         <button
-          type="button"
           onClick={() => {
-            onSelectPath?.(path);
-            openFile?.(path);
+            onSelectPath(path);
+            openFile(path);
           }}
           className={cn(
             "flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition",
@@ -62,22 +47,17 @@ export default function ExplorerNode({
           <FileCode2 className="h-4 w-4 shrink-0" />
           <span className="truncate">{name}</span>
         </button>
-
+        {/* <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100"> */}
         <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
           <button
-            type="button"
-            onClick={() => onRename?.(path)}
+            onClick={() => onRename(path)}
             className="rounded-md p-1 text-slate-400 hover:bg-white/[0.08] hover:text-white"
-            title="Rename"
           >
             <Wand2 className="h-3.5 w-3.5" />
           </button>
-
           <button
-            type="button"
-            onClick={() => onDelete?.(path)}
+            onClick={() => onDelete(path)}
             className="rounded-md p-1 text-slate-400 hover:bg-rose-500/15 hover:text-rose-200"
-            title="Delete"
           >
             <Trash2 className="h-3.5 w-3.5" />
           </button>
@@ -86,76 +66,51 @@ export default function ExplorerNode({
     );
   }
 
-  const isExpanded = expanded?.[path] ?? true;
+  const isExpanded = expanded[path] ?? true;
 
   return (
     <div>
       <div className="group flex items-center gap-1">
         <button
-          type="button"
           onClick={() => {
-            onSelectPath?.(path);
-            toggle?.(path);
+            onSelectPath(path);
+            toggle(path);
           }}
           className={cn(
             "flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition",
-            isSelected ? " text-white" : "text-slate-200 hover:bg-white/[0.05]"
+            isSelected
+              ? "bg-white/[0.06] text-white"
+              : "text-slate-200 hover:bg-white/[0.05]"
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}
         >
           {isExpanded ? (
-            <ChevronDown className="h-4 w-4 shrink-0" />
+            <ChevronDown className="h-4 w-4" />
           ) : (
-            <ChevronRight className="h-4 w-4 shrink-0" />
+            <ChevronRight className="h-4 w-4" />
           )}
-
-          <FolderTree className="h-4 w-4 shrink-0 text-cyan-300" />
-          <span
-            className={cn(
-              "truncate ",
-              isRoot ? "font-semibold text-lg" : "font-medium"
-            )}
-          >
-            {name}
-          </span>
+          <FolderTree className="h-4 w-4 text-cyan-300" />
+          <span className="truncate font-medium">{name}</span>
         </button>
-
-        <div
-          className={cn(
-            "flex items-center gap-1 transition",
-            isRoot ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-          )}
-        >
-          {isRoot && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowNewFolderModal(true)}
-                className="rounded-md p-1 text-slate-400 hover:bg-white/[0.08] hover:text-white"
-              >
-                <FolderPlus className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setShowNewFileModal(true)}
-                className="rounded-md p-1 text-slate-400 hover:bg-white/[0.08] hover:text-white"
-              >
-                <FilePlus2 className="h-4 w-4" />
-              </button>
-              <button
-                type="button"
-                onClick={() => onRename?.(path)}
-                className="rounded-md p-1 text-slate-400 hover:bg-white/[0.08] hover:text-white"
-                title="Rename"
-              >
-                <Wand2 className="h-3.5 w-3.5" />
-              </button>
-            </div>
-          )}
+        <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+          <button
+            onClick={() => onRename(path)}
+            className="rounded-md p-1 text-slate-400 hover:bg-white/[0.08] hover:text-white"
+          >
+            <Wand2 className="h-3.5 w-3.5" />
+          </button>
+          <button
+            onClick={() => onDelete(path)}
+            className="rounded-md p-1 text-slate-400 hover:bg-rose-500/15 hover:text-rose-200"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
       {isExpanded && (
         <div className="space-y-0.5">
-          {Object.entries(node || {})
+          {Object.entries(node)
             .filter(([key]) => key !== "__folder" && key !== "path")
             .map(([childName, childNode]) => (
               <ExplorerNode
@@ -171,7 +126,6 @@ export default function ExplorerNode({
                 onSelectPath={onSelectPath}
                 onRename={onRename}
                 onDelete={onDelete}
-                onLoadFolder={onLoadFolder}
               />
             ))}
         </div>
