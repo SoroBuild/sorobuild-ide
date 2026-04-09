@@ -22,7 +22,7 @@ import "vscode/localExtensionHost";
 import { connectToLs } from "./lsp-client";
 
 const workerLoaders = {
-	// TextEditorWorker: () => new editorWorker(),
+	TextEditorWorker: () => new editorWorker(),
 	TextMateWorker: () => new textMateWorker(),
 	editorWorkerService: () => new editorWorker(),
 };
