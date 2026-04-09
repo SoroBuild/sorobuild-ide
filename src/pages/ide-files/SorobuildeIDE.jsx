@@ -59,6 +59,7 @@ import {
 	updateUrlWithProjectId,
 	deleteProject,
 	fetchRepoTree,
+	updateProject,
 } from "../../utils/api";
 import { getExampleFolders } from "../../utils/lib";
 import * as monaco from "monaco-editor";
@@ -68,20 +69,24 @@ import { useStates } from "../../contexts/StatesContext";
 import { Github } from "./components/CustomIcons";
 
 export default function SorobuildeIDE() {
-	const [ongoingProcess, setOngoingProcess] = useState("");
 	const hasProjectInUrl = Boolean(
 		new URLSearchParams(window.location.search).get("projectId"),
+	);
+
+	const [openTabs, setOpenTabs] = useState(
+		hasProjectInUrl ? [] : ["hello_world/src/lib.rs"],
 	);
 
 	const [activeFile, setActiveFile] = useState(
 		hasProjectInUrl ? "" : "hello_world/src/lib.rs",
 	);
-	const [openTabs, setOpenTabs] = useState(
-		hasProjectInUrl ? [] : ["hello_world/src/lib.rs"],
-	);
-	const [selectedPath, setSelectedPath] = useState(
-		hasProjectInUrl ? "" : "hello_world/src/lib.rs",
-	);
+
+	// const [selectedPath, setSelectedPath] = useState(
+	// 	hasProjectInUrl ? "" : "hello_world/src/lib.rs",
+	// );
+
+	console.log({ activeFile });
+
 	const [expanded, setExpanded] = useState(
 		hasProjectInUrl ? {} : { hello_world: true },
 	);
@@ -109,6 +114,7 @@ export default function SorobuildeIDE() {
 			address: "GDSRVJ6Q7PKZSO6ZL2MLA3DMK64AEM7XJH7A33WUUKX3TQ6FQWCI5AOM",
 		},
 	]);
+	const [ongoingProcess, setOngoingProcess] = useState("");
 	const [terminal, setTerminal] = useState(starterLogs);
 	const [status, setStatus] = useState("Ready");
 	const [leftCollapsed, setLeftCollapsed] = useState(false);
@@ -144,20 +150,18 @@ export default function SorobuildeIDE() {
 	};
 
 	useEffect(() => {
-		if (!selectedPath) return;
-		if (files[selectedPath]) {
-			const parts = selectedPath.split("/");
+		if (!activeFile) return;
+		if (files[activeFile]) {
+			const parts = activeFile.split("/");
 			parts.pop();
 			const dir = parts.join("/") || workspaceName;
 			setNewFilePath(`${dir}/new_file.rs`);
 			setNewFolderPath(`${dir}/new_folder`);
-		} else if (
-			Object.keys(files).some((k) => k.startsWith(selectedPath + "/"))
-		) {
-			setNewFilePath(`${selectedPath}/new_file.rs`);
-			setNewFolderPath(`${selectedPath}/new_folder`);
+		} else if (Object.keys(files).some((k) => k.startsWith(activeFile + "/"))) {
+			setNewFilePath(`${activeFile}/new_file.rs`);
+			setNewFolderPath(`${activeFile}/new_folder`);
 		}
-	}, [selectedPath, files, workspaceName]);
+	}, [activeFile, files, workspaceName]);
 
 	const [showCommandPalette, setShowCommandPalette] = useState(false);
 	const [commandQuery, setCommandQuery] = useState("");
@@ -266,6 +270,14 @@ export default function SorobuildeIDE() {
 			theme: "vs-dark",
 			automaticLayout: true,
 		});
+
+		editorRef.current.onDidChangeModelContent(() => {
+			if (!activeFileRef.current) return;
+			const value = editorRef.current.getValue();
+			setFiles((prev) => ({ ...prev, [activeFileRef.current]: value }));
+			setWorkspaceDirty(true);
+			setStatus("Editing...");
+		});
 	};
 
 	const activeNetwork =
@@ -276,15 +288,6 @@ export default function SorobuildeIDE() {
 	};
 
 	const markDirty = () => setWorkspaceDirty(true);
-
-	// useEffect(() => {
-	// 	if (!editorRef.current || !activeFile) return;
-	// 	const currentCode = files[activeFile] ?? "";
-	// 	const model = editorRef.current.getModel();
-	// 	if (model) {
-	// 		model.setValue(currentCode);
-	// 	}
-	// }, [activeFile, files]);
 
 	const loadExamples = async () => {
 		setLoadingExamples(true);
@@ -308,10 +311,9 @@ export default function SorobuildeIDE() {
 		const content = files[activeFile] ?? "";
 		model.setValue(content);
 
-		// Update language
 		const language = getLanguageFromPath(activeFile);
 		monaco.editor.setModelLanguage(model, language);
-	}, [activeFile]); // <-- ONLY activeFile, not files
+	}, [activeFile]);
 
 	useEffect(() => {
 		const loadFromUrl = async () => {
@@ -337,12 +339,13 @@ export default function SorobuildeIDE() {
 
 				if (firstSrcFile) {
 					setActiveFile(firstSrcFile);
-					setSelectedPath(firstSrcFile);
+					// setSelectedPath(firstSrcFile);
 					setOpenTabs([firstSrcFile]);
 				}
 
 				setStatus("Project loaded");
 				pushLog("success", `Project loaded.`);
+				setWorkspaceDirty(false);
 			} catch {
 				pushLog("warning", "Failed to load project from URL.");
 				clearProjectIdFromUrl();
@@ -355,15 +358,16 @@ export default function SorobuildeIDE() {
 	}, []);
 
 	useEffect(() => {
-		const handleBeforeUnload = () => {
-			if (projectId) {
-				deleteProject(projectId); // keepalive fetch inside deleteProject
+		const handleBeforeUnload = (e) => {
+			if (workspaceDirty) {
+				e.preventDefault();
+				e.returnValue = "";
 			}
 		};
 
 		window.addEventListener("beforeunload", handleBeforeUnload);
 		return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-	}, [projectId]);
+	}, [workspaceDirty]);
 
 	useEffect(() => {
 		const onKey = (e) => {
@@ -373,7 +377,6 @@ export default function SorobuildeIDE() {
 			}
 			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
 				e.preventDefault();
-				// saveWorkspaceBundle();
 				saveToBackend();
 			}
 			if (e.key === "Escape") {
@@ -459,7 +462,7 @@ export default function SorobuildeIDE() {
 		}
 
 		setActiveFile(path);
-		setSelectedPath(path);
+		// setSelectedPath(path);
 		ensureTab(path);
 		setStatus(`Opened ${path}`);
 		setShowCommandPalette(false);
@@ -485,15 +488,15 @@ export default function SorobuildeIDE() {
 		if (!clean) return;
 
 		let targetDir = workspaceName;
-		if (selectedPath && files[selectedPath]) {
-			const parts = selectedPath.split("/");
+		if (activeFile && files[activeFile]) {
+			const parts = activeFile.split("/");
 			parts.pop();
 			targetDir = parts.join("/") || workspaceName;
 		} else if (
-			selectedPath &&
-			Object.keys(files).some((k) => k.startsWith(selectedPath + "/"))
+			activeFile &&
+			Object.keys(files).some((k) => k.startsWith(activeFile + "/"))
 		) {
-			targetDir = selectedPath;
+			targetDir = activeFile;
 		}
 
 		const fullPath =
@@ -508,7 +511,7 @@ export default function SorobuildeIDE() {
 
 		setFiles((prev) => ({ ...prev, [fullPath]: "" }));
 		setActiveFile(fullPath);
-		setSelectedPath(fullPath);
+		// setSelectedPath(fullPath);
 		ensureTab(fullPath);
 		setShowNewFileModal(false);
 		setStatus(`Created ${fullPath}`);
@@ -521,15 +524,15 @@ export default function SorobuildeIDE() {
 		if (!clean) return;
 
 		let targetDir = workspaceName;
-		if (selectedPath && files[selectedPath]) {
-			const parts = selectedPath.split("/");
+		if (activeFile && files[activeFile]) {
+			const parts = activeFile.split("/");
 			parts.pop();
 			targetDir = parts.join("/") || workspaceName;
 		} else if (
-			selectedPath &&
-			Object.keys(files).some((k) => k.startsWith(selectedPath + "/"))
+			activeFile &&
+			Object.keys(files).some((k) => k.startsWith(activeFile + "/"))
 		) {
-			targetDir = selectedPath;
+			targetDir = activeFile;
 		}
 
 		const fullPath =
@@ -537,7 +540,7 @@ export default function SorobuildeIDE() {
 				? clean
 				: `${targetDir}/${clean}`;
 
-		setSelectedPath(fullPath);
+		setActiveFile(fullPath);
 		setStatus(`Created folder ${fullPath}`);
 		markDirty();
 		pushLog("success", `Created folder ${fullPath}`);
@@ -564,7 +567,7 @@ export default function SorobuildeIDE() {
 			const fallback = Object.keys(next)[0];
 			if (fallback) {
 				setActiveFile(fallback);
-				setSelectedPath(fallback);
+				// setSelectedPath(fallback);
 			}
 		}
 
@@ -616,7 +619,7 @@ export default function SorobuildeIDE() {
 			setActiveFile(activeFile.replace(prefix, `${target}/`));
 		}
 
-		setSelectedPath(target);
+		setActiveFile(target);
 		setShowRenameModal(false);
 		setRenameTarget("");
 		setRenameValue("");
@@ -651,9 +654,8 @@ export default function SorobuildeIDE() {
 				await deleteProject(projectId);
 			}
 
-			const { projectId: newId } = await uploadProjectAsZip(resolvedFiles);
-			setProjectId(newId);
-			updateUrlWithProjectId(newId);
+			const res = await updateProject(projectId, resolvedFiles, workspaceName);
+			console.log({ res });
 			setWorkspaceDirty(false);
 			setStatus("Saved");
 			pushLog("success", "Project saved successfully.");
@@ -760,7 +762,7 @@ export default function SorobuildeIDE() {
 			// Clear all tabs and open only the first file
 			setOpenTabs(firstFile ? [firstFile.path] : []);
 			setActiveFile(firstFile?.path || "");
-			setSelectedPath(firstFile?.path || "");
+			// setSelectedPath(firstFile?.path || "");
 
 			setStatus("Workspace imported");
 			pushLog("success", `Imported ${filtered.length} files.`);
@@ -783,7 +785,7 @@ export default function SorobuildeIDE() {
 
 			const filtered = incoming.filter((item) => !ignored(item.path));
 
-			let targetFolder = selectedPath;
+			let targetFolder = activeFile;
 			if (targetFolder && files[targetFolder]) {
 				targetFolder = targetFolder.split("/").slice(0, -1).join("/");
 			}
@@ -1005,28 +1007,6 @@ export default function SorobuildeIDE() {
 			setOngoingProcess("");
 		}
 	};
-
-	// const compileProject = async () => {
-	// 	if (!projectId) {
-	// 		pushLog("warning", "No project to compile. Upload a project first.");
-	// 		return;
-	// 	}
-
-	// 	setStatus("Compiling...");
-	// 	pushLog(
-	// 		"info",
-	// 		`Compiling project against ${activeNetwork.label} toolchain...`,
-	// 	);
-
-	// 	try {
-	// 		const result = await buildProject(projectId, files, workspaceName);
-	// 		setStatus("Compiled successfully");
-	// 		pushLog("success", result.output || "Build completed successfully");
-	// 	} catch (error) {
-	// 		setStatus("Compile failed");
-	// 		pushLog("error", error.message || "Build failed");
-	// 	}
-	// };
 
 	const runTests = () => {
 		setStatus("Running tests...");
@@ -1472,8 +1452,8 @@ export default function SorobuildeIDE() {
 													}
 													openFile={openFile}
 													activeFile={activeFile}
-													selectedPath={selectedPath}
-													onSelectPath={setSelectedPath}
+													// selectedPath={selectedPath}
+													onSelectPath={setActiveFile}
 													onRename={startRename}
 													onDelete={deletePath}
 												/>
@@ -2192,20 +2172,6 @@ export default function SorobuildeIDE() {
 
 													<div className="min-h-0 flex-1 overflow-y-auto p-4">
 														{terminal.length === 0 ? null : (
-															//   <div className="flex h-full min-h-[180px] items-center justify-center">
-															//     <div className="max-w-md rounded-2xl border border-dashed border-white/10 bg-white/[0.02] px-6 py-8 text-center">
-															//       <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-2xl bg-cyan-400/10 text-cyan-300">
-															//         <TerminalSquare className="h-5 w-5" />
-															//       </div>
-															//       <div className="text-sm font-semibold text-white">
-															//         No console output yet
-															//       </div>
-															//       <p className="mt-2 text-sm leading-6 text-slate-400">
-															//         Compile, test, deploy, or run workspace
-															//         actions to stream logs here.
-															//       </p>
-															//     </div>
-															//   </div>
 															<div className="space-y-2 font-mono text-sm">
 																{terminal.map((entry, index) => {
 																	const type = entry?.type || "info";
