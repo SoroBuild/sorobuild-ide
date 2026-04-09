@@ -20,7 +20,7 @@ export default function ExplorerNode({
   toggle,
   openFile,
   activeFile,
-  selectedPath,
+  // selectedPath,
   onSelectPath,
   onRename,
   onDelete,
@@ -28,7 +28,7 @@ export default function ExplorerNode({
 }) {
   const isFile = Boolean(node?.__file);
   const path = node?.path;
-  const isSelected = selectedPath === path;
+  const isSelected = activeFile === path;
   const isRoot = depth === 0;
 
   const {
@@ -167,7 +167,7 @@ export default function ExplorerNode({
                 toggle={toggle}
                 openFile={openFile}
                 activeFile={activeFile}
-                selectedPath={selectedPath}
+                // selectedPath={selectedPath}
                 onSelectPath={onSelectPath}
                 onRename={onRename}
                 onDelete={onDelete}
