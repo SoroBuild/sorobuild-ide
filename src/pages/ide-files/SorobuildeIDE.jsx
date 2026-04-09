@@ -172,6 +172,57 @@ export default function SorobuildeIDE() {
 		activeFileRef.current = activeFile;
 	}, [activeFile]);
 
+	const loadGithubRepository = async (repoUrl) => {
+		setLoading(true);
+		try {
+			// Parse owner/repo from URL like https://github.com/owner/repo
+			const match = repoUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+			if (!match) {
+				pushLog(
+					"warning",
+					"Invalid GitHub URL. Use format: https://github.com/owner/repo",
+				);
+				return;
+			}
+
+			const [, owner, repo] = match;
+			const cleanRepo = repo.replace(/\.git$/, "");
+
+			pushLog("info", `Fetching repository ${owner}/${cleanRepo}...`);
+
+			// Fetch the default branch tree via GitHub API
+			const apiUrl = `https://api.github.com/repos/${owner}/${cleanRepo}/git/trees/HEAD?recursive=1`;
+			const res = await fetch(apiUrl);
+
+			if (!res.ok) {
+				throw new Error(`GitHub API error: ${res.status} ${res.statusText}`);
+			}
+
+			const data = await res.json();
+			const blobs = data.tree.filter((item) => item.type === "blob");
+
+			const normalized = [];
+
+			for (const blob of blobs) {
+				const blobRes = await fetch(blob.url);
+				const blobData = await blobRes.json();
+				const content = atob(blobData.content.replace(/\n/g, ""));
+				normalized.push({
+					path: `${cleanRepo}/${blob.path}`,
+					file: new File([content], blob.path.split("/").pop() || "file"),
+				});
+			}
+
+			await importFilesIntoWorkspace(normalized);
+			setShowExamplesModal(false);
+			pushLog("success", `Loaded repository: ${owner}/${cleanRepo}`);
+		} catch (err) {
+			pushLog("warning", `Failed to load repository: ${err.message}`);
+		} finally {
+			setLoading(false);
+		}
+	};
+
 	// monaco.editor.defineTheme("sorobuild-dark", {
 	// 	base: "vs-dark",
 	// 	inherit: true,
