@@ -18,9 +18,6 @@ export default defineConfig({
 	build: {
 		target: "esnext",
 	},
-	define: {
-		global: "window",
-	},
 	server: {
 		proxy: {
 			"/api": {
