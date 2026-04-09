@@ -6,18 +6,18 @@ import importMetaUrlPlugin from "@codingame/esbuild-import-meta-url-plugin";
 
 export default defineConfig({
 	plugins: [react()],
-	optimizeDeps: {
-		include: ["vscode-textmate", "vscode-oniguruma"],
-		rolldownOptions: {
-			plugins: [importMetaUrlPlugin],
-		},
-	},
-	worker: {
-		format: "es",
-	},
-	build: {
-		target: "esnext",
-	},
+	// optimizeDeps: {
+	// 	include: ["vscode-textmate", "vscode-oniguruma"],
+	// 	rolldownOptions: {
+	// 		plugins: [importMetaUrlPlugin],
+	// 	},
+	// },
+	// worker: {
+	// 	format: "es",
+	// },
+	// build: {
+	// 	target: "esnext",
+	// },
 	server: {
 		proxy: {
 			"/api": {
