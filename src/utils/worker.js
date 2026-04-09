@@ -24,6 +24,7 @@ import { connectToLs } from "./lsp-client";
 const workerLoaders = {
 	TextEditorWorker: () => new editorWorker(),
 	TextMateWorker: () => new textMateWorker(),
+	editorWorkerService: () => new editorWorker(),
 };
 
 window.MonacoEnvironment = {
