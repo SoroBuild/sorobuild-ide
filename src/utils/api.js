@@ -143,3 +143,41 @@ export const fetchRepoTree = async () => {
 
 	return data.tree; // array of all files + folders
 };
+
+export async function formatProject(projectId, files, workspaceName) {
+	const zip = new JSZip();
+	Object.entries(files).forEach(([path, content]) => {
+		zip.file(path, content);
+	});
+
+	const blob = await zip.generateAsync({ type: "blob" });
+	const formData = new FormData();
+	formData.append("file", blob, `${workspaceName}.zip`);
+
+	const response = await fetch(
+		`${BASE_URL}/api/projects/${projectId}/format`,
+		{
+			method: "POST",
+			body: formData,
+		},
+	);
+
+	if (!response.ok) {
+		const result = await response.json();
+		return result;
+	}
+
+	const responseBlob = await response.blob();
+	const responseZip = await JSZip.loadAsync(responseBlob);
+	const formattedFiles = {};
+
+	await Promise.all(
+		Object.entries(responseZip.files).map(async ([path, zipEntry]) => {
+			if (!zipEntry.dir) {
+				formattedFiles[path] = await zipEntry.async("string");
+			}
+		}),
+	);
+
+	return { success: true, files: formattedFiles };
+}

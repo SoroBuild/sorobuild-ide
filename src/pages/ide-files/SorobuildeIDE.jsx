@@ -60,6 +60,7 @@ import {
 	deleteProject,
 	fetchRepoTree,
 	updateProject,
+	formatProject as formatProjectApi,
 } from "../../utils/api";
 import { getExampleFolders } from "../../utils/lib";
 import * as monaco from "monaco-editor";
@@ -377,6 +378,7 @@ export default function SorobuildeIDE() {
 			}
 			if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
 				e.preventDefault();
+				if (!projectId) return;
 				saveToBackend();
 			}
 			if (e.key === "Escape") {
@@ -427,6 +429,7 @@ export default function SorobuildeIDE() {
 	const commandItems = useMemo(() => {
 		const items = [
 			{ label: "Compile project", action: () => compileProject() },
+			{ label: "Format project", action: () => formatProject() },
 			{ label: "Run tests", action: () => runTests() },
 			{ label: "Run audit", action: () => runAudit() },
 			{ label: "Simulate invoke", action: () => simulateInvoke() },
@@ -972,6 +975,43 @@ export default function SorobuildeIDE() {
 		}
 	};
 
+	const formatProject = async () => {
+		setOngoingProcess("format");
+		if (!projectId) {
+			pushLog("warning", "No project to format. Upload a project first.");
+			return;
+		}
+
+		setStatus("Formatting...");
+		pushLog("info", `Formatting project...`);
+
+		try {
+			const resolvedFiles = await resolveAllFileContents();
+			const result = await formatProjectApi(
+				projectId,
+				resolvedFiles,
+				workspaceName,
+			);
+
+			if (result.success) {
+				setFiles(result.files);
+				if (activeFile && result.files[activeFile]) {
+					editorRef.current?.setValue(result.files[activeFile]);
+				}
+				setStatus("Formatted successfully");
+				pushLog("success", "Project formatted successfully");
+			} else {
+				setStatus("Format failed");
+				pushLog("warning", result.output || "Format failed");
+			}
+		} catch (error) {
+			setStatus("Format failed");
+			pushLog("warning", error.message || "Format failed");
+		} finally {
+			setOngoingProcess("");
+		}
+	};
+
 	const compileProject = async () => {
 		setOngoingProcess("compile");
 		if (!projectId) {
@@ -1225,6 +1265,12 @@ export default function SorobuildeIDE() {
 													icon={RefreshCw}
 													label="Compile"
 													onClick={compileProject}
+												/>
+												<ToolbarButton
+													ongoingProcess={ongoingProcess === "format"}
+													icon={RefreshCw}
+													label="Format"
+													onClick={formatProject}
 												/>
 												<ToolbarButton
 													icon={FlaskConical}
