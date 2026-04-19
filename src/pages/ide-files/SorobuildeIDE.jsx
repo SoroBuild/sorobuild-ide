@@ -172,10 +172,12 @@ export default function SorobuildeIDE() {
 	const editorRef = useRef(null);
 
 	const activeFileRef = useRef(activeFile);
+	const filesRef = useRef(files);
 
 	useEffect(() => {
 		activeFileRef.current = activeFile;
-	}, [activeFile]);
+		filesRef.current = files;
+	}, [activeFile, files]);
 
 	const loadGithubRepository = async (repoUrl) => {
 		setLoading(true);
@@ -274,6 +276,7 @@ export default function SorobuildeIDE() {
 
 		editorRef.current.onDidChangeModelContent(() => {
 			if (!activeFileRef.current) return;
+			isTypingRef.current = true; // mark that this change came from the user
 			const value = editorRef.current.getValue();
 			setFiles((prev) => ({ ...prev, [activeFileRef.current]: value }));
 			setWorkspaceDirty(true);
@@ -303,18 +306,37 @@ export default function SorobuildeIDE() {
 		}
 	};
 
+	const lastSyncedFileRef = useRef("");
+	const isTypingRef = useRef(false);
+
 	useEffect(() => {
 		if (!editorRef.current || !activeFile) return;
 
 		const model = editorRef.current.getModel();
 		if (!model) return;
 
-		const content = files[activeFile] ?? "";
-		model.setValue(content);
+		const content = files[activeFile];
+		const isNewFile = lastSyncedFileRef.current !== activeFile;
 
-		const language = getLanguageFromPath(activeFile);
-		monaco.editor.setModelLanguage(model, language);
-	}, [activeFile]);
+		// If we switched to a new file, always sync immediately (even if empty)
+		// unless it's still pending a lazy load (empty string but has a fileHandle)
+		if (isNewFile) {
+			const isPendingLoad = content === "" && fileHandles[activeFile];
+			if (isPendingLoad) return; // wait for openFile to load it and update files state
+
+			lastSyncedFileRef.current = activeFile;
+			isTypingRef.current = false;
+			model.setValue(content ?? "");
+			monaco.editor.setModelLanguage(model, getLanguageFromPath(activeFile));
+			return;
+		}
+
+		// Same file — only sync if content arrived from a lazy load (not from typing)
+		if (!isTypingRef.current && content !== undefined) {
+			model.setValue(content);
+			monaco.editor.setModelLanguage(model, getLanguageFromPath(activeFile));
+		}
+	}, [activeFile, files, fileHandles]);
 
 	useEffect(() => {
 		const loadFromUrl = async () => {
@@ -459,13 +481,22 @@ export default function SorobuildeIDE() {
 	const openFile = async (path) => {
 		if (!(path in files)) return;
 
-		if (!files[path] && fileHandles[path]) {
-			const content = await fileHandles[path].text();
-			setFiles((prev) => ({ ...prev, [path]: content }));
+		let content = files[path];
+
+		if (!content && fileHandles[path]) {
+			content = await fileHandles[path].text();
+			await new Promise((resolve) => {
+				setFiles((prev) => {
+					const next = { ...prev, [path]: content };
+					setTimeout(resolve, 0);
+					return next;
+				});
+			});
 		}
 
+		isTypingRef.current = false; // ← reset before switching file
+		lastSyncedFileRef.current = ""; // ← force re-sync on next effect run
 		setActiveFile(path);
-		// setSelectedPath(path);
 		ensureTab(path);
 		setStatus(`Opened ${path}`);
 		setShowCommandPalette(false);
