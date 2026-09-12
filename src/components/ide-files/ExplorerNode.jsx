@@ -10,7 +10,7 @@ import {
   Wand2,
 } from "lucide-react";
 import { cn } from "../../utils/lib";
-import { useStates } from "../../contexts/StatesContext";
+import { useStates } from "../../ide/WorkspaceContext";
 
 export default function ExplorerNode({
   name,
@@ -50,7 +50,7 @@ export default function ExplorerNode({
             openFile?.(path);
           }}
           className={cn(
-            "flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition",
+            "flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition",
             isActive
               ? "bg-cyan-400/10 text-cyan-200"
               : isSelected
@@ -98,7 +98,7 @@ export default function ExplorerNode({
             toggle?.(path);
           }}
           className={cn(
-            "flex flex-1 items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition",
+            "flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-left text-xs transition",
             isSelected ? " text-white" : "text-slate-200 hover:bg-white/[0.05]"
           )}
           style={{ paddingLeft: `${depth * 12 + 8}px` }}

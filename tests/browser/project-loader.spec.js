@@ -1,0 +1,85 @@
+import { test, expect } from '@playwright/test';
+const ref = '52c2bcdafe48f834c32ed9d227258605607402b8';
+async function setup(page) {
+  await page.route('**/api/projects',route=>route.fulfill({status:201,json:{projectId:'loaded-project',projectToken:'test-token',revision:1}}));
+  await page.route('https://api.github.com/repos/stellar/soroban-examples/contents**', route => route.fulfill({json:[{name:'counter',path:'counter',type:'dir'}]}));
+  await page.goto('/');
+  await expect(page.locator('.monaco-editor').first()).toBeVisible();
+  await page.getByRole('button',{name:'Load Soroban project',exact:true}).click();
+}
+test('failed example stays open with an error and preserves the workspace; retry replaces it', async ({page}) => {
+  let fail = true, nativeAlerts = 0;
+  page.on('dialog',async dialog=>{nativeAlerts++;await dialog.dismiss();});
+  await page.route(`https://api.github.com/repos/stellar/soroban-examples/git/trees/${ref}?recursive=1`, route => route.fulfill(fail ? {status:403,json:{message:'rate limited'}} : {json:{tree:[{type:'blob',path:'counter/Cargo.toml',size:30},{type:'blob',path:'counter/src/lib.rs',size:30}]}}));
+  await page.route('https://raw.githubusercontent.com/**',route=>route.fulfill({body:route.request().url().endsWith('Cargo.toml')?'[package]\nname="counter"\nversion="0.1.0"':'#![no_std]\n// counter source'}));
+  await setup(page);
+  const modal=page.getByRole('dialog',{name:'Load Soroban Project'});
+  await modal.getByRole('button',{name:'Load counter',exact:true}).click();
+  await expect(modal.getByRole('alert')).toContainText('403');
+  await expect(page.locator('.workspace-footer')).toContainText('files');
+  fail=false;
+  await modal.getByRole('button',{name:'Load counter',exact:true}).click();
+  const confirmation=page.getByRole('dialog',{name:'Open this project?',exact:true});
+  await expect(confirmation.getByRole('button',{name:'Keep current workspace'})).toBeFocused();
+  await page.screenshot({path:'test-results/project-confirmation.png'});
+  await page.keyboard.press('Escape');
+  await expect(modal).toBeVisible();
+  await expect(modal).toHaveAttribute('aria-busy','false');
+  await modal.getByRole('button',{name:'Load counter',exact:true}).click();
+  await confirmation.getByRole('button',{name:'Open project',exact:true}).click();
+  await expect(modal).toHaveCount(0);
+  expect(nativeAlerts).toBe(0);
+  await expect(page.locator('.workspace-footer')).toContainText('2 files');
+  await page.waitForTimeout(700);
+  await expect(page).toHaveURL(/projectId=loaded-project/);
+  const saved=await page.evaluate(()=>JSON.parse(localStorage.getItem('sorobuild:workspace:loaded-project')));
+  expect(saved.dirty).toBe(false);
+  await page.route('**/api/projects/loaded-project',route=>route.fulfill({json:{files:saved.files,revision:1}}));
+  expect(Object.keys(saved.files).sort()).toEqual(['Cargo.toml','src/lib.rs']);
+  expect(saved.activeFile).toBe('src/lib.rs');
+  await page.reload();
+  await expect(page.locator('.workspace-footer')).toContainText('2 files');
+});
+test('example catalogue errors have an inline retry',async({page})=>{
+  await page.route('https://api.github.com/repos/stellar/soroban-examples/contents**',route=>route.fulfill({status:503,json:{}}));
+  await page.goto('/');
+  await page.getByRole('button',{name:'Load Soroban project',exact:true}).click();
+  await expect(page.getByRole('dialog').getByRole('alert')).toContainText('Could not load examples');
+  await expect(page.getByRole('button',{name:'Retry examples'})).toBeVisible();
+});
+
+test('loader supports search, keyboard dismissal and URL guidance',async({page})=>{
+ await setup(page);
+ const modal=page.getByRole('dialog',{name:'Load Soroban Project'});
+ await expect(modal.getByRole('textbox',{name:'Search Soroban examples'})).toBeFocused();
+ await modal.getByRole('textbox',{name:'Search Soroban examples'}).fill('missing');
+ await expect(modal.getByText('No examples found')).toBeVisible();
+ await modal.getByRole('button',{name:'Clear search'}).click();
+ await expect(modal.getByRole('button',{name:'Load counter',exact:true})).toBeVisible();
+ await page.screenshot({path:'test-results/project-loader-examples.png'});
+ await modal.getByRole('button',{name:'GitHub Repository',exact:true}).click();
+ await modal.getByRole('textbox',{name:'Repository URL'}).fill('https://github.com/owner/repo/issues');
+ await modal.getByRole('button',{name:'Load Repository',exact:true}).click();
+ await expect(modal.getByRole('alert')).toContainText('/tree/branch/folder');
+ await page.screenshot({path:'test-results/project-loader-github.png'});
+ await page.keyboard.press('Escape');
+ await expect(modal).toHaveCount(0);
+ await expect(page.getByRole('button',{name:'Load Soroban project',exact:true})).toBeFocused();
+});
+test('directory loading shows an overlay and blocks duplicate imports',async({page})=>{
+ let release;
+ const gate=new Promise(resolve=>{release=resolve;});
+ await page.route(`https://api.github.com/repos/stellar/soroban-examples/git/trees/${ref}?recursive=1`,async route=>{await gate;await route.fulfill({status:503,json:{}});});
+ await setup(page);
+ const modal=page.getByRole('dialog',{name:'Load Soroban Project'});
+ await modal.getByRole('button',{name:'Load counter',exact:true}).click();
+ await expect(modal.locator('.project-loader-progress')).toBeVisible();
+ await expect(modal.getByRole('button',{name:'Load counter',exact:true})).toBeDisabled();
+ await page.keyboard.press('Escape');
+ await expect(modal).toBeVisible();
+ await page.screenshot({path:'test-results/project-loader-loading.png'});
+ release();
+ await expect(modal.getByRole('alert')).toContainText('503');
+ await expect(modal.locator('.project-loader-progress')).toHaveCount(0);
+ await expect(modal.getByRole('button',{name:'Load counter',exact:true})).toBeEnabled();
+});

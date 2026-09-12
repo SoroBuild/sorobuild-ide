@@ -1,0 +1,52 @@
+import { test, expect } from '@playwright/test';
+import { mockFunding } from './funding';
+
+test('deployment scrolls in a short dock and expansion preserves inputs and confirmation', async ({ page }) => {
+  await mockFunding(page);
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Deploy', exact: true }).first().click();
+  const controls = page.getByRole('region', { name: 'Deployment controls', exact: true });
+  expect(await controls.evaluate(e => e.scrollHeight > e.clientHeight)).toBe(true);
+  await page.getByRole('button', { name: 'Generate test account', exact: true }).click();
+  const signer = await page.getByLabel('Transaction signer').inputValue();
+  await page.getByLabel('Upload WASM', { exact: true }).setInputFiles({ name: 'panel.wasm', mimeType: 'application/wasm', buffer: Buffer.from([0,97,115,109,1,0,0,0]) });
+  const deploy = page.getByRole('button', { name: 'Deploy selected WASM', exact: true });
+  await deploy.scrollIntoViewIfNeeded();
+  await expect(deploy).toBeInViewport();
+  await page.getByRole('button', { name: 'Expand deployment view' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Deploy contract', exact: true });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByLabel('Transaction signer')).toHaveValue(signer);
+  await expect(dialog.getByLabel('WASM artifact')).toHaveValue('panel.wasm');
+  await dialog.getByText('Constructor arguments (optional)', { exact: true }).click();
+  await dialog.getByLabel('Typed constructor arguments').fill('[]');
+  await deploy.click();
+  await expect(page.getByRole('dialog', { name: 'Deploy contract?', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(dialog).toBeVisible();
+  await page.getByRole('button', { name: 'Close expanded deployment view' }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByLabel('Typed constructor arguments')).toHaveValue('[]');
+  await expect(page.getByLabel('Transaction signer')).toHaveValue(signer);
+  await expect(page.getByRole('button', { name: 'Expand deployment view' })).toBeFocused();
+  await page.getByRole('button', { name: 'Expand deployment view' }).click();
+  await page.keyboard.press('Escape');
+  await expect(dialog).toHaveCount(0);
+  await deploy.scrollIntoViewIfNeeded();
+  await expect(deploy).toBeInViewport();
+});
+
+test('expanded deployment fits a narrow viewport and reaches the last control', async ({ page }) => {
+  await page.setViewportSize({ width: 540, height: 700 });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Deploy', exact: true }).first().click();
+  await page.getByRole('button', { name: 'Expand deployment view' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Deploy contract', exact: true });
+  expect(await dialog.evaluate(e => e.scrollWidth <= e.clientWidth)).toBe(true);
+  await page.getByText('Interact with an existing contract', { exact: true }).click();
+  const invoke = page.getByRole('button', { name: 'Sign and invoke', exact: true });
+  await invoke.scrollIntoViewIfNeeded();
+  await expect(invoke).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Close expanded deployment view' })).toBeInViewport();
+});

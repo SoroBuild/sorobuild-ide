@@ -1,12 +1,3 @@
-import { StatesProvider } from "./contexts/StatesContext";
-import SorobuildIDE from "./pages/ide-files/SorobuildeIDE";
-
-function App() {
-  return (
-    <StatesProvider>
-      <SorobuildIDE />
-    </StatesProvider>
-  );
-}
-
-export default App;
+import SorobuildIDE from './pages/ide-files/SorobuildeIDE';
+import { WorkspaceProvider } from './ide/WorkspaceContext';
+export default function App() { return <WorkspaceProvider><SorobuildIDE /></WorkspaceProvider>; }

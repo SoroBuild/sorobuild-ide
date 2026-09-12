@@ -27,7 +27,6 @@ import {
   nativeToScVal,
   ScInt,
   rpc,
-  Keypair,
   StrKey,
   Account,
   Asset,
@@ -165,7 +164,7 @@ export const anyInvoke = async (
 
     return preparedTransaction.toXDR();
   } catch (e) {
-    alert(e.message);
+    throw e;
   }
 };
 
@@ -203,7 +202,7 @@ export const anyInvoke = async (
 
 //     return preparedTransaction.toXDR();
 //   } catch (e) {
-//     alert(e.message);
+//     throw e;
 //   }
 // };
 
@@ -225,7 +224,7 @@ export async function loadContract(wasm, txBuilderUpload, network, server) {
     const xdr = preparedTransaction.toXDR();
     return await signTransaction(xdr, { network: network });
   } catch (e) {
-    alert(e.message);
+    throw e;
   }
 }
 
@@ -603,16 +602,12 @@ export async function sendTransactionMemoryMainnet(userKey, signedTx, network) {
 //   }
 // }
 
-const keypair = Keypair.fromSecret(
-  "SD4NTQ77L6I5XK6BGPDMZF6W7OPPKHJQPAKQ4EE3P2QHDQH7SMGBLYAN"
-);
 
-const intPub = keypair.publicKey();
 
 export async function loadContractMainnet(file, pubKey, fee, network) {
   const formData = new FormData();
   formData.append("wasm", file);
-  formData.append("pubKey", intPub);
+  formData.append("pubKey", pubKey);
   formData.append("fee", fee);
   formData.append("network", network?.network);
 
@@ -631,26 +626,21 @@ export async function loadContractMainnet(file, pubKey, fee, network) {
 
     console.log("the load wasm xdr", xdr);
 
-    const signedTx = TransactionBuilder.fromXDR(
-      xdr,
-      network?.networkPassphrase
-    );
-
-    signedTx.sign(keypair);
-    // const signedTx = await signTransaction(xdr, {
-    //   networkPassphrase: network?.networkPassphrase,
-    // });
-
-    // return signedTx?.signedTxXdr;
-    return signedTx.toXDR();
+    const signedTx = await signTransaction(xdr, {
+      networkPassphrase: network?.networkPassphrase,
+      address: pubKey,
+    });
+    if (signedTx.error || !signedTx.signedTxXdr) {
+      throw new Error(signedTx.error?.message || "Wallet did not sign the transaction.");
+    }
+    return signedTx.signedTxXdr;
   } catch (error) {
     // console.error(
     //   "Error sending transaction:",
     //   error.response ? error.response.data : error.message
     // );
 
-    alert(error.response.data.error);
-    return;
+    throw error;
   }
 }
 
