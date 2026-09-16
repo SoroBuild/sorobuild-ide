@@ -25,7 +25,7 @@ test('a local workspace gets a private link and SDK suggestions without a manual
  let creates=0, attempts=0;
  await page.addInitScript(files=>localStorage.setItem('soroban_studio_workspace_v2',JSON.stringify({files,dirty:true,activeFile:'src/lib.rs'})),files);
  await page.route('**/api/projects',route=>{creates++;return route.fulfill({json:{projectId:'new-editor',projectToken:'owner',revision:1}});});
- await page.route('**/api/projects/new-editor/language',route=>{if(++attempts===1)return route.fulfill({status:503,json:{error:'Indexing the Soroban SDK. Retry shortly.'}});return route.fulfill({json:{result:{items:[{label:'storage()',kind:2,insertText:'storage()'}]},diagnostics:{}}});});
+ await page.route('**/api/projects/new-editor/language',route=>{if(++attempts<=4)return route.fulfill({status:503,json:{error:'Indexing the Soroban SDK. Retry shortly.'}});return route.fulfill({json:{result:{items:[{label:'storage()',kind:2,insertText:'storage()'}]},diagnostics:{}}});});
  await page.goto('/');await expect(page.locator('.monaco-editor').first()).toBeVisible();
  await page.getByRole('textbox',{name:'Editor content',exact:true}).focus();
  await page.keyboard.press('ControlOrMeta+a');await page.keyboard.insertText(files['src/lib.rs']);await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowLeft');

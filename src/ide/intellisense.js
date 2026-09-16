@@ -19,7 +19,7 @@ export function registerIntelliSense(monaco,{models,files,onStatus}) {
     activeRequests.add(controller);
     currentRequest={method,controller};
     let timedOut=false;
-    const timeout=setTimeout(()=>{timedOut=true;controller.abort();},200000);
+    const timeout=setTimeout(()=>{timedOut=true;controller.abort();},240000);
     const cancellation=token?.onCancellationRequested(()=>controller.abort());
     onStatus('Analyzing Rust / Soroban SDK…');
     try {
@@ -29,7 +29,7 @@ export function registerIntelliSense(monaco,{models,files,onStatus}) {
         project=id;activateProject(id);
       }
       let response;
-      for(let attempt=0;attempt<3;attempt++){
+      for(let attempt=0;attempt<60;attempt++){
         if(stale())return null;
         try {
           response=await ideRequest('language',{method,path,position:{line:position.lineNumber-1,character:position.column-1},files:snapshot},controller.signal);
@@ -43,7 +43,7 @@ export function registerIntelliSense(monaco,{models,files,onStatus}) {
             recoveredAccess=true;project=id;activateProject(id);
             continue;
           }
-          if(attempt===2 || error.status!==503 || !/Indexing|still starting/.test(error.message))throw error;
+          if(attempt===59 || error.status!==503 || !/Indexing|still starting/.test(error.message))throw error;
           if(stale())return null;
           onStatus('Indexing Soroban SDK… suggestions will appear when ready');
           await new Promise(resolve=>setTimeout(resolve,1000));
