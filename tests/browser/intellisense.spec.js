@@ -33,3 +33,29 @@ test('a local workspace gets a private link and SDK suggestions without a manual
  await expect(page.getByRole('option').filter({hasText:'storage()'})).toBeVisible();
  await expect(page).toHaveURL(/projectId=new-editor/);expect(creates).toBe(1);
 });
+
+test('typing cancels an in-flight completion so the latest request can proceed',async({page})=>{
+ const files={'Cargo.toml':'[package]\nname="demo"','src/lib.rs':'fn main() { env.st }'};
+ let started,release,completions=0;
+ const firstStarted=new Promise(resolve=>{started=resolve;});
+ const held=new Promise(resolve=>{release=resolve;});
+ await page.addInitScript(files=>{
+  localStorage.setItem('sorobuild:workspace:cancel-editor',JSON.stringify({files,dirty:true,activeFile:'src/lib.rs'}));
+  localStorage.setItem('sorobuild:access:cancel-editor',JSON.stringify({token:'owner',revision:1}));
+ },files);
+ await page.route('**/api/projects/cancel-editor/language',async route=>{
+  if(route.request().postDataJSON().method!=='textDocument/completion')return route.fulfill({json:{result:null,diagnostics:{}}});
+  if(++completions===1){started();await held;return route.fulfill({json:{result:null,diagnostics:{}}}).catch(()=>{});}
+  return route.fulfill({json:{result:{items:[{label:'storage()',kind:2,insertText:'storage()'}]},diagnostics:{}}});
+ });
+ try {
+  await page.goto('/?projectId=cancel-editor');await expect(page.locator('.monaco-editor').first()).toBeVisible();
+  await page.getByRole('textbox',{name:'Editor content',exact:true}).focus();
+  await page.keyboard.press('ControlOrMeta+a');await page.keyboard.insertText(files['src/lib.rs']);await page.keyboard.press('ArrowLeft');await page.keyboard.press('ArrowLeft');
+  await page.keyboard.press('Control+Space');await firstStarted;
+  const aborted=page.waitForEvent('requestfailed',{predicate:req=>req.url().endsWith('/language')});
+  await page.keyboard.press('Escape');await page.keyboard.insertText('o');await page.keyboard.press('Control+Space');
+  expect((await aborted).failure().errorText).toContain('ABORTED');
+  await expect(page.getByRole('option').filter({hasText:'storage()'})).toBeVisible();
+ }finally{release();}
+});

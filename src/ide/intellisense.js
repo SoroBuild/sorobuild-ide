@@ -3,6 +3,7 @@ const toRange = range => ({startLineNumber:range.start.line+1,startColumn:range.
 const markup = contents => (Array.isArray(contents)?contents:[contents]).filter(Boolean).map(item=>({value:typeof item==='string'?item:item.language?`\`\`\`${item.language}\n${item.value}\n\`\`\``:item.value,isTrusted:false}));
 export function registerIntelliSense(monaco,{models,files,onStatus}) {
   let disposed=false, queue=Promise.resolve();
+  const activeRequests=new Set();
   const pathFor = model => [...models.current].find(([,value])=>value===model)?.[0];
   const request = (method,model,position,token)=>{
     const path=pathFor(model);if(!path)return null;
@@ -12,6 +13,9 @@ export function registerIntelliSense(monaco,{models,files,onStatus}) {
     // Skip superseded requests before they consume a backend queue slot.
     const task=queue.catch(()=>{}).then(async()=>{
     if(stale())return null;
+    const controller=new AbortController();
+    activeRequests.add(controller);
+    const cancellation=token?.onCancellationRequested(()=>controller.abort());
     onStatus('Analyzing Rust / Soroban SDK…');
     try {
       if(!project){
@@ -23,7 +27,7 @@ export function registerIntelliSense(monaco,{models,files,onStatus}) {
       for(let attempt=0;attempt<3;attempt++){
         if(stale())return null;
         try {
-          response=await ideRequest('language',{method,path,position:{line:position.lineNumber-1,character:position.column-1},files:snapshot});
+          response=await ideRequest('language',{method,path,position:{line:position.lineNumber-1,character:position.column-1},files:snapshot},controller.signal);
           break;
         }catch(error){
           if(attempt===2 || error.status!==503 || !/Indexing|still starting/.test(error.message))throw error;
@@ -40,6 +44,7 @@ export function registerIntelliSense(monaco,{models,files,onStatus}) {
       }
       return response.result;
     }catch(error){if(!disposed && !token?.isCancellationRequested)onStatus(error.message);return null;}
+    finally {cancellation?.dispose();activeRequests.delete(controller);}
     });
     queue=task;
     return task;
@@ -62,5 +67,5 @@ export function registerIntelliSense(monaco,{models,files,onStatus}) {
   ];
   const warm=()=>{const model=[...models.current.values()].find(model=>model.getLanguageId()==='rust');if(model && projectId())request('textDocument/hover',model,{lineNumber:1,column:1});};
   const timer=setTimeout(warm,1000);window.addEventListener('sorobuild-project',warm);
-  return {dispose(){disposed=true;clearTimeout(timer);window.removeEventListener('sorobuild-project',warm);providers.forEach(provider=>provider.dispose());}};
+  return {dispose(){disposed=true;for(const controller of activeRequests)controller.abort();clearTimeout(timer);window.removeEventListener('sorobuild-project',warm);providers.forEach(provider=>provider.dispose());}};
 }
