@@ -26,7 +26,7 @@ async function request(route, method = 'GET', body, id, signal, onOutput) {
   }
   const data = await response.json().catch(() => null);
   if (!data) throw new Error('API returned an invalid response.');
-  if (!response.ok && response.status !== 422) throw new Error(data.error || `API request failed (${response.status}).`);
+  if (!response.ok && response.status !== 422) throw Object.assign(new Error(data.error || `API request failed (${response.status}).`), {status:response.status});
   const revision = Number(response.headers.get('X-Project-Revision'));
   if (response.ok && id && revision) remember(id, { ...access, revision });
   return data;

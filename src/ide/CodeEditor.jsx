@@ -8,8 +8,38 @@ export default function CodeEditor({ files, activeFile, onChange, editorRef, onO
   const [languageStatus,setLanguageStatus]=useState('Rust · Ctrl+Space for suggestions');
   callback.current = onChange;
   useEffect(() => {
-    monaco.editor.defineTheme('sorobuild-clean', { base: 'vs-dark', inherit: true, rules: [], colors: { 'editor.background': '#0d141f', 'editorGutter.background': '#0d141f', 'editorOverviewRuler.background': '#00000000', 'scrollbar.shadow': '#00000000', 'editor.foreground': '#c9d5e4', 'editorLineNumber.foreground': '#42556c', 'editorLineNumber.activeForeground': '#91a8c0', 'editor.selectionBackground': '#234558', 'editor.lineHighlightBackground': '#0d141f', 'editor.lineHighlightBorder': '#00000000', 'editorIndentGuide.background1': '#ffffff09', 'editorCursor.foreground': '#75dcc9' } });
-    const editor = monaco.editor.create(host.current, { theme: 'sorobuild-clean', automaticLayout: true, minimap: { enabled: false }, fontSize: 13, lineHeight: 22, padding: { top: 16 }, scrollBeyondLastLine: false, smoothScrolling: true, overviewRulerBorder: false, scrollbar: { useShadows: false, verticalScrollbarSize: 6, horizontalScrollbarSize: 6 }, renderLineHighlight: 'none', model: null });
+    monaco.editor.defineTheme('sorobuild-clean', { base: 'vs-dark', inherit: true, rules: [], colors: { 'editor.background': '#0d141f', 'editorGutter.background': '#0d141f', 'editorOverviewRuler.background': '#00000000', 'scrollbar.shadow': '#00000000', 'editor.foreground': '#c9d5e4', 'editorLineNumber.foreground': '#42556c', 'editorLineNumber.activeForeground': '#91a8c0', 'editor.selectionBackground': '#234558', 'editor.lineHighlightBackground': '#0d141f', 'editor.lineHighlightBorder': '#00000000', 'editorIndentGuide.background1': '#ffffff09', 'editorCursor.foreground': '#75dcc9',
+      'editorSuggestWidget.background': '#17212e',
+      'editorSuggestWidget.border': '#405166',
+      'editorSuggestWidget.foreground': '#dce6ef',
+      'editorSuggestWidget.selectedBackground': '#253f59',
+      'editorSuggestWidget.selectedForeground': '#ffffff',
+      'editorSuggestWidget.highlightForeground': '#75beff',
+      'editorSuggestWidget.focusHighlightForeground': '#9cdcfe',
+      'editorSuggestWidgetStatus.foreground': '#a6b7ca',
+      'editorHoverWidget.background': '#17212e',
+      'editorHoverWidget.foreground': '#dce6ef',
+      'editorHoverWidget.border': '#405166',
+      'editorHoverWidget.statusBarBackground': '#121c28',
+      'editorWidget.background': '#17212e',
+      'editorWidget.border': '#405166',
+      'widget.shadow': '#00000066',
+      'textLink.foreground': '#75beff',
+      'symbolIcon.methodForeground': '#b4a0e5',
+      'symbolIcon.functionForeground': '#b4a0e5',
+      'symbolIcon.structForeground': '#4ec9b0',
+      'symbolIcon.variableForeground': '#9cdcfe',
+      'symbolIcon.fieldForeground': '#9cdcfe',
+      'symbolIcon.keywordForeground': '#c586c0' } });
+    const editor = monaco.editor.create(host.current, { theme: 'sorobuild-clean', automaticLayout: true, minimap: { enabled: false }, fontSize: 13, lineHeight: 22, padding: { top: 16 }, scrollBeyondLastLine: false, smoothScrolling: true, overviewRulerBorder: false, scrollbar: { useShadows: false, verticalScrollbarSize: 6, horizontalScrollbarSize: 6 }, renderLineHighlight: 'none',
+      suggestFontSize: 13, suggestLineHeight: 24,
+      quickSuggestions: {other: 'on', comments: 'off', strings: 'off'},
+      quickSuggestionsDelay: 200, suggestOnTriggerCharacters: true,
+      wordBasedSuggestions: 'currentDocument', snippetSuggestions: 'bottom',
+      suggest: {showIcons: true, showStatusBar: true, showInlineDetails: true, preview: false, snippetsPreventQuickSuggestions: false},
+      parameterHints: {enabled: true, cycle: true},
+      hover: {enabled: true, delay: 350, sticky: true},
+      model: null });
     instance.current = editor; editorRef.current = editor;
     const language=registerIntelliSense(monaco,{models,files:source,onStatus:setLanguageStatus});
     const navigation=editor.onDidChangeModel(() => { if (!syncing.current) { const found=[...models.current].find(([,model])=>model===editor.getModel()); if(found)openCallback.current?.(found[0]); } });
