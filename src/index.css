@@ -274,3 +274,9 @@ button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-
 
 .output-metadata code { display:block; max-width:100%; overflow-wrap:anywhere; line-height:1.7; }
 .output-metadata .transaction-explorer-link { display:flex; width:fit-content; margin-top:10px; }
+
+/* Monaco's typing surface follows the caret; it is not a form-field focus box. */
+.sorobuild-code-editor .monaco-editor .native-edit-context:focus,
+.sorobuild-code-editor .monaco-editor textarea.inputarea:focus {
+  outline: none;
+}

@@ -32,6 +32,7 @@ export default function CodeEditor({ files, activeFile, onChange, editorRef, onO
       'symbolIcon.fieldForeground': '#9cdcfe',
       'symbolIcon.keywordForeground': '#c586c0' } });
     const editor = monaco.editor.create(host.current, { theme: 'sorobuild-clean', automaticLayout: true, minimap: { enabled: false }, fontSize: 13, lineHeight: 22, padding: { top: 16 }, scrollBeyondLastLine: false, smoothScrolling: true, overviewRulerBorder: false, scrollbar: { useShadows: false, verticalScrollbarSize: 6, horizontalScrollbarSize: 6 }, renderLineHighlight: 'none',
+      fixedOverflowWidgets: true,
       suggestFontSize: 13, suggestLineHeight: 24,
       quickSuggestions: {other: 'on', comments: 'off', strings: 'off'},
       quickSuggestionsDelay: 200, suggestOnTriggerCharacters: true,
